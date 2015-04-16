@@ -91,11 +91,11 @@ yum install -y augeas crudini screen wget
 
 wget https://bootstrap.pypa.io/get-pip.py
 python get-pip.py
-pip install requests[security]
 
-#yum install -y python-devel
-#yum install -y gcc libgcc glibc libffi-devel libxml2-devel libxslt-devel openssl-devel zlib-devel bzip2-devel ncurses-devel
-#pip install cryptography
+yum install -y python-devel
+yum install -y gcc libgcc glibc libffi-devel libxml2-devel libxslt-devel openssl-devel zlib-devel bzip2-devel ncurses-devel
+pip install cryptography
+pip install requests[security]
 
 systemctl stop firewalld
 systemctl mask firewalld
