@@ -36,6 +36,11 @@ ntpdate pool.ntp.org
 yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-kilo/rdo-release-kilo-0.noarch.rpm
 yum install -y epel-release
 
+systemctl stop firewalld
+systemctl mask firewalld
+yum install -y iptables-services
+systemctl enable iptables
+
 # Midonet
 cat >> /etc/yum.repos.d/midonet.repo << EOF_MIDO
 [midonet]
