@@ -29,17 +29,17 @@ systemctl start network.service
 #
 # Repos
 #
+rpm -ivh http://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm
+yum makecache fast
 
 # packstack
 yum install -y ntpdate
 ntpdate pool.ntp.org
-yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-kilo/rdo-release-kilo-0.noarch.rpm
+yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-juno/rdo-release-juno-1.noarch.rpm
 yum install -y epel-release
 
-systemctl stop firewalld
-systemctl mask firewalld
-yum install -y iptables-services
-systemctl enable iptables
+#rm -f /var/lib/rpm/__*
+#rpm --rebuilddb -v -v
 
 # Midonet
 cat >> /etc/yum.repos.d/midonet.repo << EOF_MIDO
@@ -52,7 +52,7 @@ gpgkey=http://bcn4.bcn.midokura.com:8081/artifactory/api/gpg/key/public
 
 [midonet-openstack-integration]
 name=MidoNet OpenStack Integration
-baseurl=http://bcn4.bcn.midokura.com:8081/artifactory/midonet/el7/master/nightly/kilo/noarch/
+baseurl=http://bcn4.bcn.midokura.com:8081/artifactory/midonet/el7/master/nightly/juno/noarch/
 enabled=1
 gpgcheck=1
 gpgkey=http://bcn4.bcn.midokura.com:8081/artifactory/api/gpg/key/public
@@ -74,12 +74,11 @@ enabled=1
 gpgcheck=0
 EOF_MIDO
 
-
-#
 # Updating and installing dependencies
 #
-
 yum update -y
+#cp /etc/pki/tls/certs/ca-bundle.crt /root/
+#curl http://curl.haxx.se/ca/cacert.pem -o /etc/pki/tls/certs/ca-bundle.crt
 
 # Tools
 yum install -y augeas crudini screen wget
@@ -91,8 +90,19 @@ yum install -y augeas crudini screen wget
 #
 
 wget https://bootstrap.pypa.io/get-pip.py
-sudo python get-pip.py
-#pip install  oslo.utils oslo.config
+python get-pip.py
+pip install requests[security]
+
+#yum install -y python-devel
+#yum install -y gcc libgcc glibc libffi-devel libxml2-devel libxslt-devel openssl-devel zlib-devel bzip2-devel ncurses-devel
+#pip install cryptography
+
+systemctl stop firewalld
+systemctl mask firewalld
+yum install -y iptables-services
+systemctl enable iptables
+
+
 
 IP=192.168.124.185
 yum install -y openstack-packstack
