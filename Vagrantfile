@@ -39,8 +39,6 @@ ntpdate pool.ntp.org
 yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-juno/rdo-release-juno-1.noarch.rpm
 yum install -y epel-release
 
-#rm -f /var/lib/rpm/__*
-#rpm --rebuilddb -v -v
 
 # Midonet
 cat >> /etc/yum.repos.d/midonet.repo << EOF_MIDO
@@ -111,7 +109,6 @@ yum install -y iptables-services
 systemctl enable iptables
 
 
-
 IP=192.168.124.185
 yum install -y openstack-packstack
 packstack --install-hosts=$IP \
@@ -119,10 +116,10 @@ packstack --install-hosts=$IP \
  --os-swift-install=n \
  --os-ceilometer-install=n \
  --os-cinder-install=n \
- --os-glance-install=n \
+ --os-glance-install=y \
  --os-heat-install=n \
  --os-horizon-install=n \
- --os-nova-install=n \
+ --os-nova-install=y \
  --provision-demo=n
 
 rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
@@ -357,8 +354,6 @@ systemctl restart neutron-metadata-agent
 neutron net-create foo
 neutron subnet-create foo 172.16.1.0/24 --name foo
 
-echo "FINISHED"
-
 
 function install_nova_docker_with_midonet() {
     yum install -y git python-pip
@@ -389,23 +384,23 @@ function configure_nova_for_docker() {
 #
 #Setting docker up
 #
-#yum install -y docker
+yum install -y docker
 # add nova compute to the docker group so it can use its socket
-#gpasswd -a nova docker
-#systemctl enable docker
-#systemctl start docker
+gpasswd -a nova docker
+systemctl enable docker
+systemctl start docker
 
-#configure_glance_for_docker
+configure_glance_for_docker
 
 # Add docker's cirros to glance
-#docker pull cirros
-#docker save cirros | glance image-create --is-public=True --container-format=docker --disk-format=raw --name cirros
+docker pull cirros
+docker save cirros | glance image-create --is-public=True --container-format=docker --disk-format=raw --name cirros
 
 #install_nova_docker_with_midonet
-#configure_nova_for_docker
+configure_nova_for_docker
 
 # Define more appropriately sized instance for cirros containers
-#nova flavor-create "m1.nano" auto 64 0 1
+nova flavor-create "m1.nano" auto 64 0 1
 
 EOF
   config.vm.box = "centos7"
