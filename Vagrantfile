@@ -32,6 +32,7 @@ systemctl start network.service
 rpm -ivh http://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm
 yum makecache fast
 
+
 # packstack
 yum install -y ntpdate
 ntpdate pool.ntp.org
@@ -74,11 +75,18 @@ enabled=1
 gpgcheck=0
 EOF_MIDO
 
+
+cat >> /etc/resolv.conf << EOF_MIDO
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+EOF_MIDO
+
 # Updating and installing dependencies
 #
 yum update -y
 #cp /etc/pki/tls/certs/ca-bundle.crt /root/
 #curl http://curl.haxx.se/ca/cacert.pem -o /etc/pki/tls/certs/ca-bundle.crt
+yum update -y ca-certificates
 
 # Tools
 yum install -y augeas crudini screen wget
@@ -348,6 +356,8 @@ systemctl restart neutron-metadata-agent
 #
 neutron net-create foo
 neutron subnet-create foo 172.16.1.0/24 --name foo
+
+echo "FINISHED"
 
 
 function install_nova_docker_with_midonet() {
