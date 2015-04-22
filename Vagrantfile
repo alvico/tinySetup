@@ -348,15 +348,9 @@ systemctl restart neutron-server
 systemctl restart neutron-dhcp-agent
 systemctl restart neutron-metadata-agent
 
-#
-# Create internal network for usage on the instances
-#
-neutron net-create foo
-neutron subnet-create foo 172.16.1.0/24 --name foo
-
 
 function install_nova_docker_with_midonet() {
-    yum install -y git python-pip
+    yum install -y git
     git clone https://review.openstack.org/stackforge/nova-docker
     pushd nova-docker
     git checkout origin/stable/juno
@@ -396,11 +390,66 @@ configure_glance_for_docker
 docker pull cirros
 docker save cirros | glance image-create --is-public=True --container-format=docker --disk-format=raw --name cirros
 
-#install_nova_docker_with_midonet
+install_nova_docker_with_midonet
 configure_nova_for_docker
 
 # Define more appropriately sized instance for cirros containers
 nova flavor-create "m1.nano" auto 64 0 1
+
+#external network
+neutron net-create ext-net --shared --router:external=True
+neutron subnet-create ext-net --name ext-subnet --allocation-pool start=200.200.200.2,end=200.200.200.254 --disable-dhcp --gateway 200.200.200.1 200.200.200.0/24
+
+
+# Fake uplink
+# We are going to create the following topology to allow the VMs reach external
+# networks
+#
+#             +---------------+
+#                             |
+#                             | 172.19.0.1/30
+#          +------------------+---------------+
+#          |                                  |
+#          |     Fakeuplink linux bridge      |
+#          |                                  |
+#          +------------------+---------------+        UNDERLAY
+#                             | veth0
+#                             |
+#                             |
+#                             |
+# +------+  +-------+  +-------------+  +-----+  +-----+
+#                             |
+#                             |
+#                             |
+#               172.19.0.2/30 | veth1
+#          +------------------+----------------+        OVERLAY
+#          |                                   |
+#          |    MidonetProviderRouter          |
+#          |                                   |
+#          +------------------+----------------+
+#                             |  200.200.200.0/24
+#             +               |
+#             +---------------+----------------+
+
+ip link add type veth
+ip link set dev veth0 up
+ip link set dev veth1 up
+
+brctl addbr uplinkbridge
+brctl addif uplinkbridge veth0
+ip addr add 172.19.0.1/30 dev uplinkbridge
+ip link set dev uplinkbridge up
+
+sysctl -w net.ipv4.ip_forward=1
+
+ip route add 200.200.200.0/24 via 172.19.0.2
+
+router=$(midonet-cli -e router list | awk '{print $2}')
+port=$(midonet-cli -e router $router add port address 172.19.0.2 net 172.19.0.0/30)
+midonet-cli -e router $router add route src 0.0.0.0/0 dst 0.0.0.0/0 type normal port router $router port $port gw 172.19.0.1
+host=$(midonet-cli -e host list | awk '{print $2}')
+midonet-cli -e host $host add binding port router $router port $port interface veth1
+
 
 EOF
   config.vm.box = "centos7"
