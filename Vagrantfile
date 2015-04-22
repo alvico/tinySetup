@@ -394,7 +394,7 @@ install_nova_docker_with_midonet
 configure_nova_for_docker
 
 # Define more appropriately sized instance for cirros containers
-nova flavor-create "m1.nano" auto 64 0 1
+nova flavor-create --is-public true m1.nano 6 64 0 1
 
 #external network
 neutron net-create ext-net --shared --router:external=True
