@@ -1,4 +1,4 @@
-This a vagrant file that installs midonet+neutron on a centos7 machine and fires the services. This job is just a dirty modification of the great job Toni(@celebdor) did here: https://github.com/celebdor/nova_docker_midonet so all the credit should go to him, I just put some extra cheese into the pizza :)
+This a vagrant file that installs an allinone with nova-docker on a centos7 machine and fires the services. This job is just a dirty modification of the great job Toni(@celebdor) did here: https://github.com/celebdor/nova_docker_midonet so all the credit should go to him, I just put some extra cheese into the pizza :)
 
 Install vagrant.
 
