@@ -46,7 +46,7 @@ cat >> /etc/yum.repos.d/midonet.repo << EOF_MIDO
 name=MidoNet
 baseurl=http://bcn4.bcn.midokura.com:8081/artifactory/midonet/el7/master/nightly/all/noarch/
 enabled=1
-gpgcheck=1
+gpgcheck=0
 gpgkey=http://bcn4.bcn.midokura.com:8081/artifactory/api/gpg/key/public
 
 [midonet-openstack-integration]
@@ -95,13 +95,14 @@ yum install -y augeas crudini screen wget
 #
 #
 
-wget https://bootstrap.pypa.io/get-pip.py
-python get-pip.py
+#wget https://bootstrap.pypa.io/get-pip.py
+#python get-pip.py
+
 
 yum install -y python-devel
 yum install -y gcc libgcc glibc libffi-devel libxml2-devel libxslt-devel openssl-devel zlib-devel bzip2-devel ncurses-devel
-pip install cryptography
-pip install requests[security]
+yum install -y python-crypto
+yum install -y python-pip
 
 systemctl stop firewalld
 systemctl mask firewalld
@@ -351,9 +352,9 @@ systemctl restart neutron-metadata-agent
 
 function install_nova_docker_with_midonet() {
     yum install -y git
-    git clone https://review.openstack.org/stackforge/nova-docker
+    git clone https://github.com/alvico/nova-docker.git
     pushd nova-docker
-    git checkout origin/stable/juno
+    git checkout stable/juno
     git cherry-pick 06dabc0aecf95003e2558da3899ceed43367c237
     pip install pbr
     python setup.py install --record /root/nova_docker_installed_files.txt
@@ -380,9 +381,12 @@ function configure_nova_for_docker() {
 #
 yum install -y docker
 # add nova compute to the docker group so it can use its socket
+groupadd docker
 gpasswd -a nova docker
+chown root:docker /var/run/docker.sock
 systemctl enable docker
 systemctl start docker
+systemctl restart openstack-nova-compute
 
 configure_glance_for_docker
 
