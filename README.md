@@ -10,4 +10,8 @@ vagrant box add centos7 https://f0fff3908f081cb6461b407be80daf97f07ac418.googled
 
 clone the repo
 
+install vagrant reload plugin:
+
+vagrant plugin install vagrant-reload
+
 vagrant up

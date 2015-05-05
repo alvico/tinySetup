@@ -404,6 +404,21 @@ nova flavor-create --is-public true m1.nano 6 64 0 1
 neutron net-create ext-net --shared --router:external=True
 neutron subnet-create ext-net --name ext-subnet --allocation-pool start=200.200.200.2,end=200.200.200.254 --disable-dhcp --gateway 200.200.200.1 200.200.200.0/24
 
+pip uninstall -y oslo.concurrency
+pip install -y "oslo.concurrency>=1.8.0,<1.9.0"
+
+systemctl restart openstack-nova-compute
+systemctl restart openstack-nova-novncproxy
+
+sed -i 's/#config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/g' /etc/keystone/keystone.conf
+sed -i 's/#config_file=\/usr\/share\/glance\/glance-api-dist-paste.ini/config_file=\/usr\/share/glance\/glance-api-dist-paste.ini/g' /etc/glance/glance-api.conf
+sed -i 's/#config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/g' /etc/glance/glance-registry.conf
+
+config.vm.provision :reload
+
+systemctl stop openstack-keystone
+kill -9 `ps -ef | grep httpd | grep -v grep | awk '{print $2}'`
+systemctl restart openstack-keystone
 
 # Fake uplink
 # We are going to create the following topology to allow the VMs reach external
@@ -465,7 +480,7 @@ EOF
       nova_docker.vm.provision "shell",
     inline: $provisioning_nova_docker
       nova_docker.vm.provider :virtualbox do |vb|
-          vb.memory = 4096
+          vb.memory = 8192
           vb.cpus = 2
       end
   end
