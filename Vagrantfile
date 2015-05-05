@@ -410,9 +410,9 @@ pip install -y "oslo.concurrency>=1.8.0,<1.9.0"
 systemctl restart openstack-nova-compute
 systemctl restart openstack-nova-novncproxy
 
-sed -i 's/#config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/g' /etc/keystone/keystone.conf
-sed -i 's/#config_file=\/usr\/share\/glance\/glance-api-dist-paste.ini/config_file=\/usr\/share/glance\/glance-api-dist-paste.ini/g' /etc/glance/glance-api.conf
-sed -i 's/#config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/g' /etc/glance/glance-registry.conf
+sed -i -e 's/#config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/g' /etc/keystone/keystone.conf
+sed -i -e 's/#config_file=\/usr\/share\/glance\/glance-api-dist-paste.ini/config_file=\/usr\/share/glance\/glance-api-dist-paste.ini/g' /etc/glance/glance-api.conf
+sed -i -e 's/#config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/g' /etc/glance/glance-registry.conf
 
 config.vm.provision :reload
 
