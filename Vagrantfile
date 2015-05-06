@@ -5,11 +5,19 @@
 # configures the configuration version (we support older styles for
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
+Vagrant.require_plugin "vagrant-reload"
 Vagrant.configure(2) do |config|
+  config.vm.provision :reload
   $provisioning_nova_docker = <<EOF
 #
 # Disable Network Manager
 #
+
+cat >> /etc/resolv.conf << EOF_MIDO
+nameserver 8.8.8.8
+nameserver 8.8.4.4
+EOF_MIDO
+
 systemctl mask NetworkManager
 systemctl stop NetworkManager
 cat > /etc/sysconfig/network-scripts/ifcfg-enp0s8 << MIDO_EOF
@@ -71,12 +79,6 @@ name= DataStax Repo for Apache Cassandra
 baseurl=http://rpm.datastax.com/community
 enabled=1
 gpgcheck=0
-EOF_MIDO
-
-
-cat >> /etc/resolv.conf << EOF_MIDO
-nameserver 8.8.8.8
-nameserver 8.8.4.4
 EOF_MIDO
 
 # Updating and installing dependencies
@@ -405,17 +407,16 @@ neutron net-create ext-net --shared --router:external=True
 neutron subnet-create ext-net --name ext-subnet --allocation-pool start=200.200.200.2,end=200.200.200.254 --disable-dhcp --gateway 200.200.200.1 200.200.200.0/24
 
 pip uninstall -y oslo.concurrency
-pip install -y "oslo.concurrency>=1.8.0,<1.9.0"
+pip install "oslo.concurrency>=1.8.0,<1.9.0"
 
 systemctl restart openstack-nova-compute
 systemctl restart openstack-nova-novncproxy
 
-sed -i -e 's/#config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/config_file=\/usr\/share\/keystone\/keystone-dist-paste.ini/g' /etc/keystone/keystone.conf
-sed -i -e 's/#config_file=\/usr\/share\/glance\/glance-api-dist-paste.ini/config_file=\/usr\/share/glance\/glance-api-dist-paste.ini/g' /etc/glance/glance-api.conf
-sed -i -e 's/#config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/config_file=\/usr\/share\/glance\/glance-registry-dist-paste.ini/g' /etc/glance/glance-registry.conf
+sed -i -e "s%#config_file=/usr/share/keystone/keystone-dist-paste.ini%^config_file=/usr/share/keystone/keystone-dist-paste.ini%" /etc/keystone/keystone.conf
+sed -i -e "s%#config_file=/usr/share/glance/glance-api-dist-paste.ini%^config_file=/usr/share/glance/glance-api-dist-paste.ini%" /etc/glance/glance-api.conf
+sed -i -e "s%#config_file=/usr/share/glance/glance-registry-dist-paste.ini%^config_file=/usr/share/glance/glance-registry-dist-paste.ini%" /etc/glance/glance-registry.conf
 
-config.vm.provision :reload
-
+reload
 systemctl stop openstack-keystone
 kill -9 `ps -ef | grep httpd | grep -v grep | awk '{print $2}'`
 systemctl restart openstack-keystone
@@ -480,7 +481,7 @@ EOF
       nova_docker.vm.provision "shell",
     inline: $provisioning_nova_docker
       nova_docker.vm.provider :virtualbox do |vb|
-          vb.memory = 8192
+          vb.memory = 4092
           vb.cpus = 2
       end
   end
