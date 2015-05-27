@@ -481,7 +481,7 @@ EOF
       nova_docker.vm.provision "shell",
     inline: $provisioning_nova_docker
       nova_docker.vm.provider :virtualbox do |vb|
-          vb.memory = 4092
+          vb.memory = 8092
           vb.cpus = 2
       end
   end
