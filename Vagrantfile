@@ -6,7 +6,7 @@
 # backwards compatibility). Please don't change it unless you know what
 # you're doing.
 Vagrant.configure(2) do |config|
-  $provisioning_nova_docker = <<EOF
+  $provisioning_midonet_cluster = <<EOF
 #
 # Disable Network Manager
 #
@@ -29,11 +29,13 @@ systemctl start network.service
 #
 # Repos
 #
+rpm -ivh http://yum.puppetlabs.com/puppetlabs-release-el-7.noarch.rpm
+yum makecache fast
 
 # packstack
 yum install -y ntpdate
 ntpdate pool.ntp.org
-yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-kilo/rdo-release-kilo-0.noarch.rpm
+yum install -y https://repos.fedorapeople.org/repos/openstack/openstack-juno/rdo-release-juno-1.noarch.rpm
 yum install -y epel-release
 
 systemctl stop firewalld
@@ -52,7 +54,7 @@ gpgkey=http://bcn4.bcn.midokura.com:8081/artifactory/api/gpg/key/public
 
 [midonet-openstack-integration]
 name=MidoNet OpenStack Integration
-baseurl=http://bcn4.bcn.midokura.com:8081/artifactory/midonet/el7/master/nightly/kilo/noarch/
+baseurl=http://bcn4.bcn.midokura.com:8081/artifactory/midonet/el7/master/nightly/juno/noarch/
 enabled=1
 gpgcheck=1
 gpgkey=http://bcn4.bcn.midokura.com:8081/artifactory/api/gpg/key/public
@@ -100,11 +102,11 @@ packstack --install-hosts=$IP \
  --nagios-install=n \
  --os-swift-install=n \
  --os-ceilometer-install=n \
- --os-cinder-install=n \
- --os-glance-install=n \
+ --os-cinder-install=y \
+ --os-glance-install=y \
  --os-heat-install=n \
- --os-horizon-install=n \
- --os-nova-install=n \
+ --os-horizon-install=y \
+ --os-nova-install=y \
  --provision-demo=n
 
 rc=$?; if [[ $rc != 0 ]]; then exit $rc; fi
@@ -193,69 +195,18 @@ systemctl start midolman.service
 yum install -y python-midonetclient
 
 #
-# Midonet-api
+# Midonet-cluster
+#
 #
 
-yum install -y midonet-api
+echo "zookeeper.use_new_stack: true" | mn-conf set -t default
+echo "cluster.rest_api.http_port: 8081" | mn-conf set -t default
 
-# Small inline python program that sets the proper xml values to midonet-api's
-# web.xml
-cat << MIDO_EOF | python -
-from xml.dom import minidom
+yum install -y midonet-cluster
+systemctl enable midonet-cluster.service
+systemctl start midonet-cluster.service
 
-DOCUMENT_PATH = '/usr/share/midonet-api/WEB-INF/web.xml'
-
-
-def set_value(param_name, value):
-    value_node = param_node.parentNode.getElementsByTagName('param-value')[0]
-    value_node.childNodes[0].data = value
-
-
-doc = minidom.parse(DOCUMENT_PATH)
-params = doc.getElementsByTagName('param-name')
-
-for param_node in params:
-    if param_node.childNodes[0].data == 'rest_api-base_uri':
-        set_value(param_node, 'http://$IP:8081/midonet-api')
-    elif param_node.childNodes[0].data == 'keystone-service_host':
-        set_value(param_node, '$IP')
-    elif param_node.childNodes[0].data == 'keystone-admin_token':
-        set_value(param_node, '$ADMIN_TOKEN')
-    elif param_node.childNodes[0].data == 'zookeeper-zookeeper_hosts':
-        set_value(param_node, '$IP:2181')
-
-with open(DOCUMENT_PATH, 'w') as f:
-    f.write(doc.toprettyxml())
-MIDO_EOF
-
-yum install -y tomcat
-
-cat << MIDO_EOF | augtool -L
-set /augeas/load/Shellvars/incl[last()+1] /etc/tomcat/tomcat.conf
-load
-set /files/etc/tomcat/tomcat.conf/CONNECTOR_PORT 8081
-save
-MIDO_EOF
-
-cat << MIDO_EOF | sudo augtool -L
-set /augeas/load/Xml/incl[last()+1] /etc/tomcat/server.xml
-load
-set /files/etc/tomcat/server.xml/Server/Service/Connector[1]/#attribute/port 8081
-save
-MIDO_EOF
-
-cat << MIDO_EOF > /etc/tomcat/Catalina/localhost/midonet-api.xml
-<Context
-    path="/midonet-api"
-    docBase="/usr/share/midonet-api"
-    antiResourceLocking="false"
-    privileged="true"
-/>
-MIDO_EOF
-
-systemctl enable tomcat.service
-systemctl start tomcat.service
-
+systemctl restart midolman
 
 #
 # Midonet-cli
@@ -335,69 +286,41 @@ systemctl restart neutron-metadata-agent
 
 #
 # Create internal network for usage on the instances
-#
-neutron net-create foo
-neutron subnet-create foo 172.16.1.0/24 --name foo
+# external network
+neutron net-create ext-net --shared --router:external=True
+neutron subnet-create ext-net --name ext-subnet --allocation-pool start=200.200.200.2,end=200.200.200.254 --disable-dhcp --gateway 200.200.200.1 200.200.200.0/24
 
+# Fake uplink
+# We are going to create the following topology to allow the VMs reach external
+# networks
 
-function install_nova_docker_with_midonet() {
-    yum install -y git python-pip
-    git clone https://review.openstack.org/stackforge/nova-docker
-    pushd nova-docker
-    git checkout origin/stable/juno
-    git cherry-pick 06dabc0aecf95003e2558da3899ceed43367c237
-    pip install pbr
-    python setup.py install --record /root/nova_docker_installed_files.txt
-    mkdir -p /etc/nova/rootwrap.d
-    cp etc/nova/rootwrap.d/docker.filters /etc/nova/rootwrap.d/
-    popd
-}
+ip link add type veth
+ip link set dev veth0 up
+ip link set dev veth1 up
+brctl addbr uplinkbridge
+brctl addif uplinkbridge veth0
+ip addr add 172.19.0.1/30 dev uplinkbridge
+ip link set dev uplinkbridge up
+sysctl -w net.ipv4.ip_forward=1
+ip route add 200.200.200.0/24 via 172.19.0.2
 
-function configure_glance_for_docker() {
-    source keystonerc_admin
-    local glance_formats=$(crudini --get /etc/glance/glance-api.conf DEFAULT container_formats)
-    local glance_with_docker=$(case "$glance_formats" in *docker* ) echo "$glance_formats";; * ) echo "$glance_formats,docker";; esac)
-    crudini --set /etc/glance/glance-api.conf DEFAULT container_formats "$glance_with_docker"
-    systemctl restart openstack-glance-api
-}
-
-function configure_nova_for_docker() {
-    crudini --set /etc/nova/nova.conf DEFAULT compute_driver novadocker.virt.docker.DockerDriver
-    systemctl restart openstack-nova-compute
-}
-
-#
-#Setting docker up
-#
-#yum install -y docker
-# add nova compute to the docker group so it can use its socket
-#gpasswd -a nova docker
-#systemctl enable docker
-#systemctl start docker
-
-#configure_glance_for_docker
-
-# Add docker's cirros to glance
-#docker pull cirros
-#docker save cirros | glance image-create --is-public=True --container-format=docker --disk-format=raw --name cirros
-
-#install_nova_docker_with_midonet
-#configure_nova_for_docker
-
-# Define more appropriately sized instance for cirros containers
-#nova flavor-create "m1.nano" auto 64 0 1
+router=$(midonet-cli -e router list | awk '{print $2}')
+port=$(midonet-cli -e router $router add port address 172.19.0.2 net 172.19.0.0/30)
+midonet-cli -e router $router add route src 0.0.0.0/0 dst 0.0.0.0/0 type normal port router $router port $port gw 172.19.0.1
+host=$(midonet-cli -e host list | awk '{print $2}')
+midonet-cli -e host $host add binding port router $router port $port interface veth1
 
 EOF
   config.vm.box = "centos7"
   config.vm.synced_folder ".", "/vagrant", disabled: true
-  config.vm.define :nova_docker do |nova_docker|
-      nova_docker.vm.hostname = "nova-docker.local"
-      nova_docker.vm.network :private_network, ip: "192.168.124.185"
-      nova_docker.vm.network :private_network, ip: "192.168.124.186"
-      nova_docker.vm.provision "shell",
-    inline: $provisioning_nova_docker
-      nova_docker.vm.provider :virtualbox do |vb|
-          vb.memory = 4096
+  config.vm.define :midonet_cluster do |midonet_cluster|
+      midonet_cluster.vm.hostname = "nova-docker.local"
+      midonet_cluster.vm.network :private_network, ip: "192.168.124.185"
+      midonet_cluster.vm.network :private_network, ip: "192.168.124.186"
+      midonet_cluster.vm.provision "shell",
+    inline: $provisioning_midonet_cluster
+      midonet_cluster.vm.provider :virtualbox do |vb|
+          vb.memory = 8192
           vb.cpus = 2
       end
   end
